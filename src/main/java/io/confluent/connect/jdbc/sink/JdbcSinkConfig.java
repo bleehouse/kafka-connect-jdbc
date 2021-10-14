@@ -260,6 +260,17 @@ public class JdbcSinkConfig extends AbstractConfig {
   private static final EnumRecommender TABLE_TYPES_RECOMMENDER =
       EnumRecommender.in(TableType.values());
 
+  
+//  private s tatic final String IS_CHILD = "false";
+  
+  public static final String IS_CHILD = "is.child";
+  private static final String IS_CHILD_DEFAULT = "false";
+  private static final String IS_CHILD_DOC =
+      "Whether to automatically create the destination table based on record schema if it is "
+      + "found to be missing by issuing ``CREATE``.";
+  private static final String IS_CHILD_DISPLAY = "Is-Child";  
+  
+  
   public static final ConfigDef CONFIG_DEF = new ConfigDef()
         // Connection
         .define(
@@ -491,6 +502,17 @@ public class JdbcSinkConfig extends AbstractConfig {
             2,
             ConfigDef.Width.SHORT,
             RETRY_BACKOFF_MS_DISPLAY
+        )
+        .define(
+    		IS_CHILD,
+            ConfigDef.Type.BOOLEAN,
+            IS_CHILD_DEFAULT,
+            ConfigDef.Importance.MEDIUM,
+            IS_CHILD_DOC, 
+            DATAMAPPING_GROUP,
+            1,
+            ConfigDef.Width.SHORT,
+            IS_CHILD_DISPLAY
         );
 
   public final String connectorName;
@@ -506,6 +528,9 @@ public class JdbcSinkConfig extends AbstractConfig {
   public final int retryBackoffMs;
   public final boolean autoCreate;
   public final boolean autoEvolve;
+  
+  public final boolean isChild;
+  
   public final InsertMode insertMode;
   public final PrimaryKeyMode pkMode;
   public final List<String> pkFields;
@@ -513,7 +538,7 @@ public class JdbcSinkConfig extends AbstractConfig {
   public final String dialectName;
   public final TimeZone timeZone;
   public final EnumSet<TableType> tableTypes;
-
+  
   public JdbcSinkConfig(Map<?, ?> props) {
     super(CONFIG_DEF, props);
     connectorName = ConfigUtils.connectorName(props);
@@ -537,6 +562,8 @@ public class JdbcSinkConfig extends AbstractConfig {
     String dbTimeZone = getString(DB_TIMEZONE_CONFIG);
     timeZone = TimeZone.getTimeZone(ZoneId.of(dbTimeZone));
 
+    isChild = getBoolean(IS_CHILD);
+    
     if (deleteEnabled && pkMode != PrimaryKeyMode.RECORD_KEY) {
       throw new ConfigException(
           "Primary key mode must be 'record_key' when delete support is enabled");

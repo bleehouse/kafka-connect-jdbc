@@ -17,17 +17,29 @@ package io.confluent.connect.jdbc.sink;
 
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.record.TimestampType;
+import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.RetriableException;
+import org.apache.kafka.connect.header.Header;
 import org.apache.kafka.connect.sink.ErrantRecordReporter;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTask;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.apache.kafka.connect.data.Struct;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import io.confluent.connect.jdbc.dialect.DatabaseDialect;
@@ -75,11 +87,69 @@ public class JdbcSinkTask extends SinkTask {
     }
     final SinkRecord first = records.iterator().next();
     final int recordsCount = records.size();
-    log.debug(
-        "Received {} records. First record kafka coordinates:({}-{}-{}). Writing them to the "
-        + "database...",
-        recordsCount, first.topic(), first.kafkaPartition(), first.kafkaOffset()
-    );
+  
+    if (config.isChild == false) {
+	   
+	   log.info("config.isChildObj == falseconfig.isChildObj == falseconfig.isChildObj == falseconfig.isChildObj == false");
+   }
+
+    if (config.isChild == true) {
+    
+	    Iterator iter_records = records.iterator();
+	    List<SinkRecord> templist=new ArrayList<SinkRecord>(); 
+	        
+	    while(iter_records.hasNext()) {
+	    	SinkRecord items = (SinkRecord) iter_records.next();
+	    	
+	    	String iTopic = items.topic();
+	    	Integer iPartition = items.kafkaPartition();
+	    	Schema iKeySchema = items.keySchema();
+	    	Object iKey = items.key();
+	    	Long iTimestamp = items.timestamp();
+	    	Iterable<Header> iHeader = items.headers();
+	    	TimestampType iTimestampType =  items.timestampType();
+	    
+	    	Object oldValue = items.value();
+		     
+	    	org.apache.kafka.connect.data.Struct oldstruct =  (Struct) oldValue;
+	    	
+	    	JSONParser iparser = new JSONParser();
+	    	JSONObject ipayloadObj = null;
+	    	
+	    	try {
+	    		ipayloadObj = (JSONObject) iparser.parse(oldstruct.get("value").toString());
+	    	} catch (ParseException e1) {
+	    		e1.printStackTrace();
+	    	}
+	      
+	    	SchemaBuilder iValueKeyBuilder = SchemaBuilder.struct().name("com.github.castorm.kafka.connect.http.Value");
+	    	Iterator json_iter = ipayloadObj.keySet().iterator();
+	    	
+	    	while(json_iter.hasNext()) {
+	    		String key = (String)json_iter.next();
+	    		iValueKeyBuilder.field(key, Schema.STRING_SCHEMA);
+	    	}
+	    	
+	        Schema iValueSchema = iValueKeyBuilder.build();
+	    	Struct iStruct = new Struct(iValueSchema);
+	    	
+	    	Iterator iIter_value = ipayloadObj.keySet().iterator();
+	    	
+	    	while(iIter_value.hasNext()) {
+	    		String key = (String)iIter_value.next();
+	    		iStruct.put(iValueSchema.field(key),ipayloadObj.get(key));
+	    	}    	
+	    	
+	    	SinkRecord iFinalRecord = new SinkRecord(iTopic, iPartition, iKeySchema, iKey, iValueSchema, iStruct, iTimestamp, iTimestamp, iTimestampType, iHeader);
+	    	templist.add(iFinalRecord);
+	    }
+	    
+	    records.clear();
+	    
+	    for(SinkRecord frecord:templist)  {
+	    	records.add(frecord);
+	    }
+    } 
     try {
       writer.write(records);
     } catch (TableAlterOrCreateException tace) {
