@@ -18,6 +18,7 @@ package io.confluent.connect.jdbc.sink;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.record.TimestampType;
+import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.errors.ConnectException;
@@ -85,18 +86,14 @@ public class JdbcSinkTask extends SinkTask {
     if (records.isEmpty()) {
       return;
     }
+
     final SinkRecord first = records.iterator().next();
     final int recordsCount = records.size();
-  
-    if (config.isChild == false) {
-	   
-	   log.info("config.isChildObj == falseconfig.isChildObj == falseconfig.isChildObj == falseconfig.isChildObj == false");
-   }
 
     if (config.isChild == true) {
     
 	    Iterator iter_records = records.iterator();
-	    List<SinkRecord> templist=new ArrayList<SinkRecord>(); 
+	    List<SinkRecord> templist= new ArrayList<SinkRecord>(); 
 	        
 	    while(iter_records.hasNext()) {
 	    	SinkRecord items = (SinkRecord) iter_records.next();
@@ -110,9 +107,26 @@ public class JdbcSinkTask extends SinkTask {
 	    	TimestampType iTimestampType =  items.timestampType();
 	    
 	    	Object oldValue = items.value();
-		     
-	    	org.apache.kafka.connect.data.Struct oldstruct =  (Struct) oldValue;
 	    	
+	    	List<String> addkeylist= new ArrayList<String>(); 
+	    	org.apache.kafka.connect.data.Struct oldstruct =  (Struct) oldValue;
+			Iterator fields_iter = oldstruct.schema().fields().iterator();
+			
+			while(fields_iter.hasNext()) {
+
+				Field tempf =  (Field)fields_iter.next();
+				
+				if (tempf.name().equalsIgnoreCase("value")) {
+					
+				} else if (tempf.name().equalsIgnoreCase("key")) {
+					
+				} else if (tempf.name().equalsIgnoreCase("timestamp")) {
+					
+				} else {
+					addkeylist.add(tempf.name().toString());
+				}
+			}
+			
 	    	JSONParser iparser = new JSONParser();
 	    	JSONObject ipayloadObj = null;
 	    	
@@ -130,6 +144,10 @@ public class JdbcSinkTask extends SinkTask {
 	    		iValueKeyBuilder.field(key, Schema.STRING_SCHEMA);
 	    	}
 	    	
+	    	for (String key : addkeylist) {
+	    		iValueKeyBuilder.field(key, Schema.STRING_SCHEMA); 
+	    	}
+
 	        Schema iValueSchema = iValueKeyBuilder.build();
 	    	Struct iStruct = new Struct(iValueSchema);
 	    	
@@ -140,6 +158,9 @@ public class JdbcSinkTask extends SinkTask {
 	    		iStruct.put(iValueSchema.field(key),ipayloadObj.get(key));
 	    	}    	
 	    	
+	    	for (String key : addkeylist) {
+	    		iStruct.put(iValueSchema.field(key),oldstruct.get(key).toString());
+	    	}
 	    	SinkRecord iFinalRecord = new SinkRecord(iTopic, iPartition, iKeySchema, iKey, iValueSchema, iStruct, iTimestamp, iTimestamp, iTimestampType, iHeader);
 	    	templist.add(iFinalRecord);
 	    }
